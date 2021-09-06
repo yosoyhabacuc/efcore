@@ -310,10 +310,10 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
                     secondStringExpression = arguments[1];
                 }
 
-                var equalsCheck = TranslateSystemFunction("STRINGEQUALS", typeof(bool), firstStringExpression, secondStringExpression, _sqlExpressionFactory.Constant(false));
                 var greaterThanCheck = _sqlExpressionFactory.GreaterThan(firstStringExpression, secondStringExpression);
-                var conditionNonEquals = _sqlExpressionFactory.Condition(greaterThanCheck, _sqlExpressionFactory.Constant(1), _sqlExpressionFactory.Constant(-1, new CosmosTypeMapping(typeof(int))));
-                var condition = _sqlExpressionFactory.Condition(equalsCheck, _sqlExpressionFactory.Constant(0), conditionNonEquals);
+                var lessThanCheck = _sqlExpressionFactory.LessThan(firstStringExpression, secondStringExpression);
+                var conditionLessThan = _sqlExpressionFactory.Condition(lessThanCheck, _sqlExpressionFactory.Constant(-1, new CosmosTypeMapping(typeof(int))), _sqlExpressionFactory.Constant(0));
+                var condition = _sqlExpressionFactory.Condition(greaterThanCheck, _sqlExpressionFactory.Constant(1), conditionLessThan);
                 return condition;
             }
 

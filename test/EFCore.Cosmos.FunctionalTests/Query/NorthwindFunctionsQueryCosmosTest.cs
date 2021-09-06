@@ -169,7 +169,7 @@ WHERE ((c[""Discriminator""] = ""Customer"") AND CONTAINS(c[""ContactName""], ""
             AssertSql(
                 @"SELECT c
 FROM root c
-WHERE (c[""Discriminator""] = ""Customer"")");
+WHERE ((c[""Discriminator""] = ""Customer"") AND (((c[""CustomerID""] > ""ALFKI"") ? 1 : ((c[""CustomerID""] < ""ALFKI"") ? -1 : 0)) = 0))");
         }
 
         [ConditionalTheory(Skip = "Issue #17246")]
