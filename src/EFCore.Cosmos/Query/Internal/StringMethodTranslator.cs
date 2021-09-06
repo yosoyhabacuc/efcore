@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore.Cosmos.Storage.Internal;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Utilities;
 
@@ -38,7 +39,7 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
 
         private static readonly MethodInfo _toLowerMethodInfo
             = typeof(string).GetRequiredRuntimeMethod(nameof(string.ToLower), Array.Empty<Type>());
-            
+
         private static readonly MethodInfo _toUpperMethodInfo
             = typeof(string).GetRequiredRuntimeMethod(nameof(string.ToUpper), Array.Empty<Type>());
 
@@ -93,6 +94,21 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
 
         private static readonly MethodInfo _stringComparisonWithComparisonTypeArgumentStatic
             = typeof(string).GetRequiredRuntimeMethod(nameof(string.Equals), typeof(string), typeof(string), typeof(StringComparison));
+
+        private static readonly MethodInfo _stringCompareToInstance
+            = typeof(string).GetRequiredRuntimeMethod(nameof(string.CompareTo), typeof(string));
+
+        private static readonly MethodInfo _stringCompareStatic
+            = typeof(string).GetRequiredRuntimeMethod(nameof(string.Compare), typeof(string), typeof(string));
+
+        private static readonly MethodInfo _stringCompareWithCaseArgumentStatic
+            = typeof(string).GetRequiredRuntimeMethod(nameof(string.Compare), typeof(string), typeof(string), typeof(bool));
+
+        private static readonly MethodInfo _stringCompareSubstringsStatic
+            = typeof(string).GetRequiredRuntimeMethod(nameof(string.Compare), typeof(string), typeof(int), typeof(string), typeof(int), typeof(int));
+
+        private static readonly MethodInfo _stringCompareSubstringsWithCaseArgumentStatic
+            = typeof(string).GetRequiredRuntimeMethod(nameof(string.Compare), typeof(string), typeof(int), typeof(string), typeof(int), typeof(int), typeof(bool));
 
         private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
@@ -259,6 +275,46 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
                         ? TranslateSystemFunction("STRINGEQUALS", typeof(bool), instance!, arguments[0], _sqlExpressionFactory.Constant(true))
                         : TranslateSystemFunction("STRINGEQUALS", typeof(bool), arguments[0], arguments[1], _sqlExpressionFactory.Constant(true));
                 }
+            }
+
+            if (_stringCompareToInstance.Equals(method)
+                || _stringCompareStatic.Equals(method)
+                || _stringCompareSubstringsStatic.Equals(method)
+                || (_stringCompareWithCaseArgumentStatic.Equals(method)
+                    && arguments[^1] is SqlConstantExpression constantComparisonCaseArgument
+                    && constantComparisonCaseArgument.Value is bool comparisonCaseArgumentValue
+                    && !comparisonCaseArgumentValue)
+                || (_stringCompareSubstringsWithCaseArgumentStatic.Equals(method)
+                    && arguments[^1] is SqlConstantExpression constantComparisonCaseArgument2
+                    && constantComparisonCaseArgument2.Value is bool comparisonCaseArgumentValue2
+                    && !comparisonCaseArgumentValue2)
+                )
+            {
+                SqlExpression firstStringExpression;
+                SqlExpression secondStringExpression;
+
+                if (_stringCompareToInstance.Equals(method))
+                {
+                    firstStringExpression = instance!;
+                    secondStringExpression = arguments[0];
+                }
+                else if (_stringCompareSubstringsStatic.Equals(method)
+                    || _stringCompareSubstringsWithCaseArgumentStatic.Equals(method))
+                {
+                    firstStringExpression = TranslateSystemFunction("SUBSTRING", typeof(string), arguments[0], arguments[1], arguments[4]);
+                    secondStringExpression = TranslateSystemFunction("SUBSTRING", typeof(string), arguments[2], arguments[3], arguments[4]);
+                }
+                else
+                {
+                    firstStringExpression = arguments[0];
+                    secondStringExpression = arguments[1];
+                }
+
+                var equalsCheck = TranslateSystemFunction("STRINGEQUALS", typeof(bool), firstStringExpression, secondStringExpression, _sqlExpressionFactory.Constant(false));
+                var greaterThanCheck = _sqlExpressionFactory.GreaterThan(firstStringExpression, secondStringExpression);
+                var conditionNonEquals = _sqlExpressionFactory.Condition(greaterThanCheck, _sqlExpressionFactory.Constant(1), _sqlExpressionFactory.Constant(-1, new CosmosTypeMapping(typeof(int))));
+                var condition = _sqlExpressionFactory.Condition(equalsCheck, _sqlExpressionFactory.Constant(0), conditionNonEquals);
+                return condition;
             }
 
             return null;

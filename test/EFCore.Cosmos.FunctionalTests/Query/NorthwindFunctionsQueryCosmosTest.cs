@@ -161,7 +161,7 @@ FROM root c
 WHERE ((c[""Discriminator""] = ""Customer"") AND CONTAINS(c[""ContactName""], ""M""))");
         }
 
-        [ConditionalTheory(Skip = "Issue #17246")]
+        //[ConditionalTheory(Skip = "Issue #17246")]
         public override async Task String_Compare_simple_zero(bool async)
         {
             await base.String_Compare_simple_zero(async);
